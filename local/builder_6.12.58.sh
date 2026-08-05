@@ -9,8 +9,8 @@ cd "$SCRIPT_DIR"
 echo "===== 欧加真SM8850通用6.12.58 A16 OKI内核本地编译脚本 By Coolapk@cctv18 ====="
 echo ">>> 读取用户配置..."
 MANIFEST=${MANIFEST:-oppo+oplus+realme}
-read -p "请输入自定义内核后缀（默认：android16-5-ga8f88ad96df3-ab13929693-4k）: " CUSTOM_SUFFIX
-CUSTOM_SUFFIX=${CUSTOM_SUFFIX:-android16-5-ga8f88ad96df3-ab13929693-4k}
+read -p "请输入自定义内核后缀（默认：android16-6-g376529f3e739-ab15072794-4k）: " CUSTOM_SUFFIX
+CUSTOM_SUFFIX=${CUSTOM_SUFFIX:-android16-6-g376529f3e739-ab15072794-4k}
 read -p "是否启用susfs？(y/n，默认：y): " APPLY_SUSFS
 APPLY_SUSFS=${APPLY_SUSFS:-y}
 read -p "是否启用 KPM？(y-启用 KpatchNext独立kpm实现, n-关闭kpm，默认：n): " USE_PATCH_LINUX
@@ -35,6 +35,8 @@ read -p "是否启用内核级基带保护？(y/n，默认：y): " APPLY_BBG
 APPLY_BBG=${APPLY_BBG:-y}
 read -p "是否应用 Unicode 零宽字符绕过修复补丁？(y/n，默认：n): " APPLY_UNICODE_FIX
 APPLY_UNICODE_FIX=${APPLY_UNICODE_FIX:-n}
+read -p "请输入内核构建时间（默认：Mon Mar 23 16:09:06 UTC 2026）: " BUILD_TIMESTAMP
+BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-Mon Mar 23 16:09:06 UTC 2026}
 
 if [[ "$KSU_BRANCH" == "y" || "$KSU_BRANCH" == "Y" ]]; then
   KSU_TYPE="SukiSU Ultra"
@@ -64,6 +66,7 @@ echo "启用ADIOS调度器: $APPLY_ADIOS"
 echo "启用Re-Kernel: $APPLY_REKERNEL"
 echo "启用内核级基带保护: $APPLY_BBG"
 echo "应用 Unicode 零宽绕过修复补丁: $APPLY_UNICODE_FIX"
+echo "内核构建时间: $BUILD_TIMESTAMP"
 echo "===================="
 echo
 
@@ -429,6 +432,8 @@ KCFLAGS+=" -Wno-error"
 KCFLAGS+=" -fno-stack-protector"
 KCFLAGS+=" -D__ANDROID_COMMON_KERNEL__"
 export KCFLAGS
+export KBUILD_BUILD_TIMESTAMP="$BUILD_TIMESTAMP"
+echo "KBUILD_BUILD_TIMESTAMP=$KBUILD_BUILD_TIMESTAMP"
 echo "编译器信息:"
 echo "Clang版本: $CLANG_VERSION"
 echo "LLD版本: $LLD_VERSION"
