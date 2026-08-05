@@ -80,6 +80,11 @@ on:
         required: true
         type: boolean
         default: 'true'
+      unicode_bypass_fix:
+        description: '是否应用 Unicode 零宽字符绕过修复补丁(GKI fs/unicode 修复)'
+        required: true
+        type: boolean
+        default: 'false'
       ccache_update:
         description: '更新ccache缓存(将本次编译生成的ccache缓存覆盖至仓库缓存，在更改编译配置、源码或需要刷新缓存时开启)'
         required: true
@@ -355,6 +360,14 @@ jobs:
           echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> ./common/arch/arm64/configs/gki_defconfig
           
+      - name: 应用 Unicode 零宽绕过修复补丁
+        if: inputs.unicode_bypass_fix
+        run: |
+          echo "正在应用 Unicode 零宽绕过修复补丁…"
+          cd kernel_workspace/common
+          wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/unicode_bypass_fix_6.1_plus.patch
+          patch -p1 -F 3 < unicode_bypass_fix_6.1_plus.patch
+
       - name: 添加 KSU & 其他配置项
         run: |
           cd kernel_workspace
