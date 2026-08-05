@@ -432,8 +432,6 @@ KCFLAGS+=" -Wno-error"
 KCFLAGS+=" -fno-stack-protector"
 KCFLAGS+=" -D__ANDROID_COMMON_KERNEL__"
 export KCFLAGS
-export KBUILD_BUILD_TIMESTAMP="$BUILD_TIMESTAMP"
-echo "KBUILD_BUILD_TIMESTAMP=$KBUILD_BUILD_TIMESTAMP"
 echo "编译器信息:"
 echo "Clang版本: $CLANG_VERSION"
 echo "LLD版本: $LLD_VERSION"
@@ -450,7 +448,12 @@ KCFLAGS+=" -fmacro-prefix-map=$ROOT_REAL_PATH=."
 KCFLAGS+=" -ffile-prefix-map=$ROOT_REAL_PATH=."
 export KCFLAGS
 source "./_setup_env.sh" 2>/dev/null || true
+# _setup_env.sh 可能重置部分构建环境，时间戳必须在其之后再次导出
+export KBUILD_BUILD_TIMESTAMP="$BUILD_TIMESTAMP"
+export KBUILD_BUILD_VERSION=1
 echo "KCFLAGS=$KCFLAGS"
+echo "KBUILD_BUILD_TIMESTAMP=$KBUILD_BUILD_TIMESTAMP"
+echo "KBUILD_BUILD_VERSION=$KBUILD_BUILD_VERSION"
 
 make -j$(nproc --all) \
     LLVM=1 \
@@ -462,6 +465,8 @@ make -j$(nproc --all) \
     HOSTLD=ld.lld \
     RUSTC="rustc" \
     OBJCOPY="llvm-objcopy" \
+    KBUILD_BUILD_TIMESTAMP="$KBUILD_BUILD_TIMESTAMP" \
+    KBUILD_BUILD_VERSION="$KBUILD_BUILD_VERSION" \
     O=out \
     gki_defconfig Image 2>&1 | tee $WORKDIR/build.log
 echo ">>> 内核编译成功！"

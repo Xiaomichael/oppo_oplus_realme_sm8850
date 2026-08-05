@@ -677,7 +677,6 @@ jobs:
           KCFLAGS+=" -fno-stack-protector"
           KCFLAGS+=" -D__ANDROID_COMMON_KERNEL__"
           export KCFLAGS
-          export KBUILD_BUILD_TIMESTAMP="${KBUILD_BUILD_TIMESTAMP:-${{ github.event.inputs.kernel_build_time }}}"
           # 4. 配置其他工具及选项（非必须，防错冗余）
           export HOSTCC=clang
           export LD="ld.lld"
@@ -689,15 +688,20 @@ jobs:
           export OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump OBJSIZE=llvm-size STRIP=llvm-strip
           # 5. 编译前运行官方环境配置脚本
           source "./_setup_env.sh" 2>/dev/null || true
+          # _setup_env.sh 可能重置部分构建环境，时间戳必须在其之后再次导出
+          export KBUILD_BUILD_TIMESTAMP="${BUILD_TIMESTAMP:-Mon Mar 23 16:09:06 UTC 2026}"
+          export KBUILD_BUILD_VERSION=1
+          echo "KBUILD_BUILD_TIMESTAMP=$KBUILD_BUILD_TIMESTAMP"
+          echo "KBUILD_BUILD_VERSION=$KBUILD_BUILD_VERSION"
           
           #在构建内核的同时清除不必要的.NET, Android NDK, Haskell, CodeQL运行库，清理空间且不阻塞后续步骤运行
           sudo rm -rf /usr/share/dotnet &
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="clang" LD="ld.lld" OBJCOPY="llvm-objcopy" O=out gki_defconfig &&
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="clang" LD="ld.lld" OBJCOPY="llvm-objcopy" KBUILD_BUILD_TIMESTAMP="$KBUILD_BUILD_TIMESTAMP" KBUILD_BUILD_VERSION="$KBUILD_BUILD_VERSION" O=out gki_defconfig &&
           export CC="$(pwd)/cc-wrapper" && export LD="$(pwd)/ld-wrapper" &&
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" OBJCOPY="llvm-objcopy" O=out Image
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" OBJCOPY="llvm-objcopy" KBUILD_BUILD_TIMESTAMP="$KBUILD_BUILD_TIMESTAMP" KBUILD_BUILD_VERSION="$KBUILD_BUILD_VERSION" O=out Image
           
           # 编译后时间劫持二次校验
           echo "--- 编译后环境时间: $(LD_PRELOAD=$PRELOAD_LIBS date) ---"
