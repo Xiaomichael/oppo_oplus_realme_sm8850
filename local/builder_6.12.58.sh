@@ -249,10 +249,10 @@ echo "CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y" >> "$DEFCONFIG_FILE"
 echo "CONFIG_HEADERS_INSTALL=n" >> "$DEFCONFIG_FILE"
 
 # 应用 CVE_2026_43499 修复补丁
-#cd common
-#wget https://github.com/cctv18/oppo_oplus_realme_sm8850/raw/refs/heads/main/other_patch/cve-2026-43499-rtmutex-6.12.patch
-#patch -p1 -F 3 < cve-2026-43499-rtmutex-6.12.patch
-#cd ..
+cd common
+wget https://github.com/cctv18/oppo_oplus_realme_sm8850/raw/refs/heads/main/other_patch/cve-2026-43499-rtmutex-6.12.patch
+patch -p1 -F 3 < cve-2026-43499-rtmutex-6.12.patch
+cd ..
 
 # 应用 Unicode 零宽绕过修复补丁
 if [[ "$APPLY_UNICODE_FIX" == "y" || "$APPLY_UNICODE_FIX" == "Y" ]]; then
