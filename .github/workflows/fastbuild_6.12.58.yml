@@ -32,6 +32,16 @@ on:
         required: true
         type: boolean
         default: 'true'
+      ksu_block_modules_enable:
+        description: '是否启用KSU预置模块加载阻断(阻断vr/vklp/oplus_secure_guard等厂商预置模块加载)'
+        required: true
+        type: boolean
+        default: 'true'
+      ksu_block_modules:
+        description: 'KSU阻断模块名单(英文逗号分隔，留空表示不阻断任何模块)'
+        required: false
+        type: string
+        default: 'vr,vklp,oplus_secure_guard,oplus_secure_guard_new,mkp'
       lz4_enable:
         description: '是否安装 lz4 1.10.0+zstd 1.5.7 补丁'
         required: true
@@ -301,6 +311,55 @@ jobs:
           else
             echo "已选择无内置KernelSU模式，跳过KernelSU配置..."
           fi
+
+
+      - name: 配置KSU预置模块加载阻断
+        if: inputs.ksu_block_modules_enable && inputs.ksu_type != 'none'
+        run: |
+          cd kernel_workspace
+          KSU_BLOCK_MODULES='${{ github.event.inputs.ksu_block_modules }}'
+          if [[ ${#KSU_BLOCK_MODULES} -gt 255 ]]; then
+            echo "错误：KSU阻断模块名单不能超过255字节"
+            exit 1
+          fi
+          if [[ -n "$KSU_BLOCK_MODULES" && ! "$KSU_BLOCK_MODULES" =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]]; then
+            echo "错误：KSU阻断模块名单仅支持字母、数字、_、-，并使用英文逗号分隔"
+            exit 1
+          fi
+          KSU_INIT_C=""
+          for candidate in \
+            "./KernelSU/kernel/core/init.c" \
+            "./common/drivers/kernelsu/core/init.c"; do
+            if [[ -f "$candidate" ]]; then
+              KSU_INIT_C="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$KSU_INIT_C" ]]; then
+            echo "未找到KernelSU init.c，跳过KSU预置模块加载阻断配置"
+            exit 0
+          fi
+          if ! grep -q "ksu_block_modules" "$KSU_INIT_C"; then
+            echo "当前KSU分支不支持ksu_block_modules，跳过配置"
+            exit 0
+          fi
+          python3 - "$KSU_INIT_C" "$KSU_BLOCK_MODULES" <<'PY_KSU_BLOCK'
+          from pathlib import Path
+          import re
+          import sys
+          path = Path(sys.argv[1])
+          modules = sys.argv[2]
+          escaped = modules.replace('\\', '\\\\').replace('"', '\\"')
+          text = path.read_text()
+          new, count = re.subn(r'char\s+ksu_block_modules\[256\]\s*=\s*"[^"]*"\s*;', f'char ksu_block_modules[256] = "{escaped}";', text, count=1)
+          if count == 0:
+              new, count = re.subn(r'char\s+ksu_block_modules\[256\]\s*;', f'char ksu_block_modules[256] = "{escaped}";', text, count=1)
+          if count == 0:
+              print(f"Cannot patch {path}: ksu_block_modules declaration not found", file=sys.stderr)
+              sys.exit(1)
+          path.write_text(new)
+          print(f"Patched {path}: block_modules={modules}")
+          PY_KSU_BLOCK
 
       - name: 应用 KernelSU & SUSFS 补丁
         if: inputs.susfs_enable
@@ -799,6 +858,8 @@ jobs:
           echo "KSU Ver: ${KSUVER}" >> ./ak3.log
           echo "susfs: ${{ github.event.inputs.susfs_enable }}" >> ./ak3.log
           echo "KPM: ${{ github.event.inputs.kpm_enable }}" >> ./ak3.log
+          echo "KSU预置模块加载阻断: ${{ github.event.inputs.ksu_block_modules_enable }}" >> ./ak3.log
+          echo "KSU阻断模块名单: ${{ github.event.inputs.ksu_block_modules }}" >> ./ak3.log
           echo "LZ4: ${{ github.event.inputs.lz4_enable }}" >> ./ak3.log
           echo "LZ4KD: ${{ github.event.inputs.lz4kd_enable }}" >> ./ak3.log
           echo "IPset: ${{ github.event.inputs.better_net }}" >> ./ak3.log

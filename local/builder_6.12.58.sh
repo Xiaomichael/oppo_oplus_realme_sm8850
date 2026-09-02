@@ -17,6 +17,10 @@ read -p "是否启用 KPM？(y-启用 KpatchNext独立kpm实现, n-关闭kpm，�
 USE_PATCH_LINUX=${USE_PATCH_LINUX:-n}
 read -p "KSU分支版本(r=ReSukiSU, y=SukiSU Ultra, n=KernelSU Next, k=KSU, l=lkm模式(无内置KSU), 默认：r): " KSU_BRANCH
 KSU_BRANCH=${KSU_BRANCH:-r}
+read -p "是否启用KSU预置模块加载阻断？(y/n，默认：y): " APPLY_KSU_BLOCK_MODULES
+APPLY_KSU_BLOCK_MODULES=${APPLY_KSU_BLOCK_MODULES:-y}
+read -p "请输入KSU阻断模块名单（默认：vr,vklp,oplus_secure_guard,oplus_secure_guard_new,mkp): " KSU_BLOCK_MODULES
+KSU_BLOCK_MODULES=${KSU_BLOCK_MODULES:-vr,vklp,oplus_secure_guard,oplus_secure_guard_new,mkp}
 read -p "是否应用 lz4 1.10.0 & zstd 1.5.7 补丁？(y/n，默认：y): " APPLY_LZ4
 APPLY_LZ4=${APPLY_LZ4:-y}
 read -p "是否应用 lz4kd 补丁？(y/n，默认：n): " APPLY_LZ4KD
@@ -56,6 +60,8 @@ echo "适用机型: $MANIFEST"
 echo "自定义内核后缀: -$CUSTOM_SUFFIX"
 echo "KSU分支版本: $KSU_TYPE"
 echo "启用susfs: $APPLY_SUSFS"
+echo "启用KSU预置模块加载阻断: $APPLY_KSU_BLOCK_MODULES"
+echo "KSU阻断模块名单: $KSU_BLOCK_MODULES"
 echo "启用 KPM: $USE_PATCH_LINUX"
 echo "应用 lz4&zstd 补丁: $APPLY_LZ4"
 echo "应用 lz4kd 补丁: $APPLY_LZ4KD"
@@ -137,6 +143,64 @@ sudo sed -i 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-'${CUSTOM_SUFFIX}'"
 sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
 echo "CONFIG_LOCALVERSION_AUTO=n" >> ./common/arch/arm64/configs/gki_defconfig
 
+
+# ===== 配置 KSU 预置模块加载阻断 =====
+configure_ksu_block_modules() {
+  if [[ "$APPLY_KSU_BLOCK_MODULES" != [yY] ]]; then
+    echo ">>> 未启用KSU预置模块加载阻断，跳过配置..."
+    return 0
+  fi
+  if [[ "$KSU_BRANCH" == [lL] ]]; then
+    echo ">>> 无内置KSU模式，跳过KSU预置模块加载阻断配置..."
+    return 0
+  fi
+  if [[ ${#KSU_BLOCK_MODULES} -gt 255 ]]; then
+    echo "错误：KSU阻断模块名单不能超过255字节"
+    exit 1
+  fi
+  if [[ -n "$KSU_BLOCK_MODULES" && ! "$KSU_BLOCK_MODULES" =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]]; then
+    echo "错误：KSU阻断模块名单仅支持字母、数字、_、-，并使用英文逗号分隔"
+    exit 1
+  fi
+
+  local KSU_INIT_C=""
+  for candidate in \
+    "$WORKDIR/kernel_workspace/KernelSU/kernel/core/init.c" \
+    "$WORKDIR/kernel_workspace/common/drivers/kernelsu/core/init.c"; do
+    if [[ -f "$candidate" ]]; then
+      KSU_INIT_C="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$KSU_INIT_C" ]]; then
+    echo ">>> 未找到KernelSU init.c，跳过KSU预置模块加载阻断配置..."
+    return 0
+  fi
+  if ! grep -q "ksu_block_modules" "$KSU_INIT_C"; then
+    echo ">>> 当前KSU分支不支持ksu_block_modules，跳过配置..."
+    return 0
+  fi
+
+  python3 - "$KSU_INIT_C" "$KSU_BLOCK_MODULES" <<'PY_KSU_BLOCK'
+from pathlib import Path
+import re
+import sys
+path = Path(sys.argv[1])
+modules = sys.argv[2]
+escaped = modules.replace('\\', '\\\\').replace('"', '\\"')
+text = path.read_text()
+new, count = re.subn(r'char\s+ksu_block_modules\[256\]\s*=\s*"[^"]*"\s*;', f'char ksu_block_modules[256] = "{escaped}";', text, count=1)
+if count == 0:
+    new, count = re.subn(r'char\s+ksu_block_modules\[256\]\s*;', f'char ksu_block_modules[256] = "{escaped}";', text, count=1)
+if count == 0:
+    print(f"Cannot patch {path}: ksu_block_modules declaration not found", file=sys.stderr)
+    sys.exit(1)
+path.write_text(new)
+print(f"Patched {path}: block_modules={modules}")
+PY_KSU_BLOCK
+}
+
 # ===== 拉取 KSU 并设置版本号 =====
 if [[ $KSU_BRANCH == [yYrR] ]]; then
   echo ">>> 拉取 ReSukiSU 并设置版本（由于SukiSU长期未维护无法正常编译，且ReSukiSU兼容sukisu管理器，故SukiSU源码仓库已重定向为resukisu）..."
@@ -164,6 +228,8 @@ elif [[ "$KSU_BRANCH" == "k" || "$KSU_BRANCH" == "K" ]]; then
 else
   echo "已选择无内置KernelSU模式，跳过配置..."
 fi
+
+configure_ksu_block_modules
 
 # ===== 克隆补丁仓库&应用 SUSFS 补丁 =====
 cd "$WORKDIR/kernel_workspace"
