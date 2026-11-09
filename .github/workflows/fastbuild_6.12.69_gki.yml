@@ -259,11 +259,17 @@ jobs:
           cd kernel_workspace
           if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" || ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
             echo "正在配置BakaSU（由于SukiSU长期未维护无法正常编译，且BakaSU兼容sukisu管理器，故SukiSU源码仓库已重定向为bakasu）..."
-            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh" | bash -s main
+            curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/refs/heads/builtin/kernel/setup.sh" | bash -s builtin
             echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
             cd ./KernelSU
+            KB=kernel/Kbuild
+            [ -f "$KB" ] || KB=kernel/Makefile
+            echo 'ccflags-y += -I$(src) -I$(src)/include' >> "$KB"
+            echo 'ccflags-y += -I$(srctree)/$(src) -I$(srctree)/$(src)/include' >> "$KB"
+            sed -i 's#security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), "ksu");#static const struct lsm_id ksu_lsmid = { .name = "ksu", .id = 0 }; security_add_hooks(ksu_hooks, ARRAY_SIZE(ksu_hooks), \&ksu_lsmid);#' kernel/hook/lsm_hook.c || true
+            grep -n "ksu_lsmid" kernel/hook/lsm_hook.c || true
             # 生成自定义版本号（基于提交计数）, 失败时使用 114514
-            KSU_VERSION=$(expr $(git rev-list --count main) + 30700 2>/dev/null || echo 114514)
+            KSU_VERSION=$(expr $(git rev-list --count HEAD 2>/dev/null || echo 0) + 33900)
             # 存储版本号到 GitHub 环境变量
             echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
             echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
@@ -363,6 +369,10 @@ jobs:
         run: |
           cd kernel_workspace
           echo "CONFIG_KSU=y" >> ./common/arch/arm64/configs/gki_defconfig
+          if [[ "${{ github.event.inputs.ksu_type }}" == "sukisu" ]]; then
+            echo "CONFIG_KPM=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KALLSYMS_ALL=y" >> ./common/arch/arm64/configs/gki_defconfig
+          fi
           if [[ "${{ github.event.inputs.susfs_enable }}" == "false" ]]; then
             echo "CONFIG_KSU_SUSFS=n" >> ./common/arch/arm64/configs/gki_defconfig
           fi
