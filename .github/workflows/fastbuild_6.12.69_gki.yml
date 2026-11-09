@@ -1,4 +1,4 @@
-name: (新版米/通用GKI) 6.12.69 GKI内核快速构建
+name: (新版米/通用GKI) 6.12.69 GKI内核快速构建 # scratch1
 
 env:
   TZ: Asia/Shanghai
