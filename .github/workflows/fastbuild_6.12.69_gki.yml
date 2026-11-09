@@ -322,14 +322,15 @@ jobs:
                 'int susfs_add_sus_type(const char *secctx, u32 type_value) { return 0; }' \
                 'int susfs_add_sus_avd_allowed_by_type(u32 s_type, u32 t_type, u16 type, u32 orig_avd_allowed) { return 0; }' \
                 'int susfs_parse_priority_app_strings(void) { return 0; }' \
-                'int susfs_set_priority_uid_filter(const char *arg) { return 0; }' \
+                'int susfs_set_priority_uid_filter(void **arg) { return 0; }' \
                 '#endif' >> fs/susfs.c
               printf '%s\n' '#ifndef KSU_SUSFS_COMPAT_PROTO' '#define KSU_SUSFS_COMPAT_PROTO' \
                 'int susfs_add_sus_type(const char *secctx, u32 type_value);' \
                 'int susfs_add_sus_avd_allowed_by_type(u32 s_type, u32 t_type, u16 type, u32 orig_avd_allowed);' \
                 'int susfs_parse_priority_app_strings(void);' \
-                'int susfs_set_priority_uid_filter(const char *arg);' \
+                'int susfs_set_priority_uid_filter(void **arg);' \
                 '#endif' >> include/linux/susfs.h
+              printf '%s\n' '#ifndef CMD_SUSFS_SET_PRIORITY_UID_FILTER' '#define CMD_SUSFS_SET_PRIORITY_UID_FILTER 0x60030' '#endif' >> include/linux/susfs_def.h
             fi
             cd ..
           else
